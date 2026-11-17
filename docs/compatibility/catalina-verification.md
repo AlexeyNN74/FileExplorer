@@ -21,12 +21,13 @@ cargo tree --target x86_64-apple-darwin > catalina-dependencies.txt
 
 Ожидаемая архитектура: `x86_64`. Сохранить фактический вывод `sw_vers`: указанная в ТЗ версия 10.15.8 не должна приниматься без проверки. Нужны уже установленные совместимые Node, Rust, Xcode/Command Line Tools; если их нет, зафиксировать блокер, не менять систему автоматически.
 
-У репозитория нет отслеживаемого npm lock, а `src-tauri/Cargo.lock` лежит вне корня Cargo workspace и устарел относительно manifest. Не выполнять `cargo update`. Сохранить фактические корневой Cargo.lock и package-lock.json из тестируемой машины вместе с результатами (без секретов); не подменять её граф Linux-графом. Если lock ещё нет, обычная установка разрешит зависимости, поэтому сначала зафиксировать полученные версии. В этом PR зависимости не обновляются и lock-файлы не меняются.
-
+Cargo.lock теперь отслеживается в корне workspace; устаревший вложенный src-tauri/Cargo.lock удалён. package-lock.json также отслеживается. Использовать `npm ci` и Cargo `--locked`, не выполнять общее обновление зависимостей. Изменение согласования версий описано в [tauri-dependency-alignment.md](tauri-dependency-alignment.md). На iMac сохранить фактический `cargo tree` вместе с результатами.
 ```sh
-npm install
+npm ci
+cargo fetch --locked
+npm run check:tauri
 npm run build
-node --test tests/errorDiagnostics.test.js
+node --test tests/*.test.js
 cargo test --locked startup::tests -- --test-threads=1
 cargo test --locked settings_write_failure_does_not_deadlock_logger -- --nocapture
 cargo test --locked state::settings_data:: -- --test-threads=1

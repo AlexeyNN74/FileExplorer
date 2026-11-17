@@ -1,5 +1,7 @@
 # Validation evidence
 
+This is the original startup-fix validation snapshot. The dependency follow-up (committed root locks and version alignment) is recorded separately in [tauri-dependency-alignment.md](tauri-dependency-alignment.md).
+
 Date: 2026-11-17. Base commit: `22b69f5a677f23ec96f0578acdcf6ce76a2db60b`. Work is on `fix/catalina-startup-diagnostics` in **AlexeyNN74/FileExplorer**, not the upstream repository.
 
 Execution environment: Debian 13 Linux x86_64, Rust 1.100.0, Node 24.22.1, npm 11.9.0. Local dependency graph: tauri 2.5.1, tauri-runtime-wry 2.6.0, wry 0.51.2, objc2 0.6.1 (plus 0.5.2). The user's macOS graph (tauri 2.12.6 / runtime-wry 2.12.4 / tao 0.37.2 / objc2 0.6.5) was examined from published crate sources, not built/run here. Tracked dependency declarations and lock versions were not updated.

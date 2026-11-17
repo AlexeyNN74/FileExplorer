@@ -10,7 +10,7 @@ Confirmed from published dependency source, not a macOS runtime reproduction:
 - These WKDownload delegate callbacks require macOS 11.3+, absent from Catalina's runtime protocol metadata. The older downloaded Wry 0.51.2 also declares these selectors; blindly downgrading is not justified.
 - objc2 0.6.5 `src/__macro_helpers/define_class.rs`, `ClassProtocolMethodsBuilder::add_method`, panics on a selector missing from the runtime protocol when compiled with `debug_assertions`. This exactly matches the supplied error. This is class registration, before any download occurs. Tao's event loop is not the source of this selector registration.
 - Changing the deployment target or the bundle minimumSystemVersion does not add WebKit APIs to Catalina. Release omits this particular assertion; that does not establish overall compatibility.
-- The current checkout resolves tauri 2.5.1 / runtime-wry 2.6.0 / wry 0.51.2 from an ignored workspace lock. These differ from the user's failing graph; no claim of reproducing that exact graph is made.
+- At initial diagnosis the checkout resolved tauri 2.5.1 / runtime-wry 2.6.0 / wry 0.51.2 from an ignored workspace lock. The later [dependency follow-up](tauri-dependency-alignment.md) commits that workspace graph and aligns the JS packages. These differ from the user's failing graph; no claim of reproducing that exact graph is made.
 
 Minimal project workaround to verify: a separate opt-in dev profile with `debug-assertions = false` for package objc2 only. Keep application assertions enabled. This reduces Rust library diagnostics, not macOS security. It is not an upstream runtime-availability fix and does not certify other WebKit calls. No dependency update is needed.
 
