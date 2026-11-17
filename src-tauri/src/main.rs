@@ -7,6 +7,7 @@ mod filesystem;
 pub mod models;
 mod search_engine;
 mod state;
+mod startup;
 
 use crate::commands::{
     command_exec_commands, file_system_operation_commands, hash_commands, meta_data_commands,
@@ -91,6 +92,7 @@ fn all_commands() -> fn(Invoke) -> bool {
         // Permission commands
         permission_commands::request_full_disk_access,
         permission_commands::check_directory_access,
+        startup::report_frontend_error,
     ]
 }
 
@@ -101,6 +103,10 @@ async fn main() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(all_commands())
         .setup(|app| {
+            constants::initialize_paths(app.path().app_config_dir()?, app.path().app_log_dir()?)?;
+            startup::migrate_legacy_settings_from_env()?;
+            state::setup_app_state(app);
+            log_info!("Starting Tauri application...");
             // Safely show/focus the main window if it exists
             if let Some(window) = app.get_window("main") {
                 let _ = window.show();
@@ -117,13 +123,8 @@ async fn main() {
             Ok(())
         });
 
-    let app = state::setup_app_state(app);
-
-    log_info!("Starting Tauri application...");
-
-    app.run(tauri::generate_context!()).expect({
-        let error_msg = "error while running tauri application";
-        log_critical!(error_msg);
-        &error_msg.to_string()
-    });
+    if let Err(error) = app.run(tauri::generate_context!()) {
+        eprintln!("Application startup failed: {error}");
+        std::process::exit(1);
+    }
 }

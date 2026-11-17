@@ -1,0 +1,101 @@
+# Проверка на реальном Intel Mac с Catalina
+
+Совместимость **не подтверждена**. Linux-проверки не заменяют выполнение этого сценария на iMac. Не объединять Draft PR до проверки. Система пользователя, Gatekeeper, SIP и настройки WebKit не меняются.
+
+## Подготовка и фиксация версий
+
+Работать в форке `AlexeyNN74/FileExplorer`, ветка `fix/catalina-startup-diagnostics`.
+
+```sh
+git remote get-url origin
+git rev-parse HEAD
+sw_vers
+uname -m
+xcodebuild -version
+rustc -Vv
+node --version
+npm --version
+npm run tauri -- --version
+cargo tree --target x86_64-apple-darwin > catalina-dependencies.txt
+```
+
+Ожидаемая архитектура: `x86_64`. Сохранить фактический вывод `sw_vers`: указанная в ТЗ версия 10.15.8 не должна приниматься без проверки. Нужны уже установленные совместимые Node, Rust, Xcode/Command Line Tools; если их нет, зафиксировать блокер, не менять систему автоматически.
+
+Cargo.lock теперь отслеживается в корне workspace; устаревший вложенный src-tauri/Cargo.lock удалён. package-lock.json также отслеживается. Использовать `npm ci` и Cargo `--locked`, не выполнять общее обновление зависимостей. Изменение согласования версий описано в [tauri-dependency-alignment.md](tauri-dependency-alignment.md). На iMac сохранить фактический `cargo tree` вместе с результатами.
+```sh
+npm ci
+cargo fetch --locked
+npm run check:tauri
+npm run build
+node --test tests/*.test.js
+cargo test --locked startup::tests -- --test-threads=1
+cargo test --locked settings_write_failure_does_not_deadlock_logger -- --nocapture
+cargo test --locked state::settings_data:: -- --test-threads=1
+cargo test --locked state::logging:: -- --test-threads=1
+```
+
+## Dev-падение
+
+Сначала сохранить результат исходной команды:
+
+```sh
+cargo tauri dev --target x86_64-apple-darwin
+```
+
+Для проверки обхода (Tauri CLI также доступен через `npm run tauri --`):
+
+```sh
+MACOSX_DEPLOYMENT_TARGET=10.15 cargo tauri dev --target x86_64-apple-darwin -- --profile catalina-dev
+```
+
+Проверить отсутствие именно `failed overriding protocol method ... didBecomeDownload`, появление интерфейса, навигацию по каталогу и открытие настроек. Записать все новые ошибки. Не считать исчезновение одной panic доказательством совместимости приложения.
+
+Профиль наследует `dev` и отключает `debug_assertions` только для пакетов `objc2` (включая одноимённые версии в графе). Проверки самого приложения остаются включены. Это обход слишком строгой проверки runtime protocol metadata, а не добавление API Catalina или исправление всей Wry. В частности, не включать отсутствующий в Catalina WKDownload API. Системные механизмы безопасности не отключаются.
+
+## Пользовательские данные и миграция
+
+После изменения пути разрешает Tauri, независимо от текущего каталога:
+
+| ОС | Настройки/шаблоны | Логи/диагностика |
+| --- | --- | --- |
+| macOS | `~/Library/Application Support/com.explr.app/` | `~/Library/Logs/com.explr.app/` |
+| Linux | каталог Tauri app_config_dir, обычно `$XDG_CONFIG_HOME/com.explr.app/` | app_log_dir, обычно `$XDG_DATA_HOME/com.explr.app/logs/` |
+| Windows | Tauri app_config_dir под Roaming AppData | app_log_dir под Local AppData |
+
+Миграция настроек запускается **до первого обычного запуска** только по явно заданному абсолютному пути к старому `config`. Она валидирует settings.json, создаёт копию атомарно без перезаписи существующего назначения, исправляет внутренний путь сохранения и не удаляет исходник. Некорректный явный источник останавливает запуск с ошибкой в stderr; исправить путь или убрать переменную. Автоимпорт из случайного cwd не выполняется.
+
+```sh
+EXPLR_LEGACY_CONFIG_DIR="/absolute/path/to/old/project/config" \
+  "/absolute/path/to/Explr.app/Contents/MacOS/src-tauri"
+```
+
+Если приложение уже создало новые настройки, импорт их не заменит. Для миграции сначала сохранить резервную копию нового settings.json и вручную освободить место назначения после закрытия приложения. Старые логи не импортируются. `meta_data.json` создаётся заново, как и прежде. Пользовательские шаблоны скопировать вручную из старого `config/templates` в новый `templates` при закрытом приложении, сохраняя исходник и не перезаписывая существующие файлы. Абсолютные пользовательские пути тем и стартовой папки не переписываются.
+
+Проверить сохранение знакомого параметра (например темы), повторный запуск и неизменность исходного settings.json. После миграции убрать переменную окружения.
+
+## Release, React-отчёт и Finder
+
+```sh
+MACOSX_DEPLOYMENT_TARGET=10.15 npm run tauri -- build --target x86_64-apple-darwin --bundles app
+```
+
+Указать абсолютный путь к фактически собранному Explr.app. Проверить архитектуру через `file` и deployment target через `otool -l` его исполняемого файла. Не обходить Gatekeeper/SIP. Подпись/нотариализация и распространение не входят в этот PR.
+
+1. Запустить бинарник из корня проекта, затем после `cd /`, затем открыть тот же `.app` двойным щелчком в Finder. Ожидается окно во всех трёх случаях, отсутствие новых config/logs в рабочем каталоге, одинаковые настройки после перезапуска. Полностью завершать предыдущий процесс между проверками.
+2. По умолчанию технические подробности в ErrorFallback не показываются, новый frontend-error.json не записывается. Уже существующий отчёт автоматически не удаляется.
+3. Если исходный ErrorFallback повторяется, получить диагностический запуск без Web Inspector:
+
+```sh
+cd /
+EXPLR_DIAGNOSTICS=1 "/absolute/path/to/Explr.app/Contents/MacOS/src-tauri" \
+  > "$TMPDIR/explr-startup.txt" 2>&1
+```
+
+Сразу после воспроизведения сохранить `~/Library/Logs/com.explr.app/frontend-error.json`. Он содержит `message`, JavaScript `stack`, React `componentStack`; поля ограничены, длинные стеки обрезаются. Последний отчёт атомарно заменяет предыдущий. В fallback появляется нейтральное уведомление; путь показывается только после нажатия **Show report location**. Файл на Unix имеет права 0600. Отчёт никуда автоматически не отправляется; перед приложением к issue проверить личные пути/тексты. После диагностики запускать без EXPLR_DIAGNOSTICS и при необходимости удалить отчёт вручную.
+
+Finder не наследует переменную из этой команды Terminal. Поэтому Finder-запуск проверять отдельно, а отчёт получать прямым диагностическим запуском бинарника. При проблеме IPC/диска fallback остаётся доступен и сообщает, что отчёт не сохранён. При падении до загрузки React использовать stderr/sample: ErrorBoundary не может перехватить native panic или ошибку парсинга начального JS.
+
+4. Если приложение теперь запускается без ErrorFallback, это ещё не объясняет прежнее React-исключение. Зафиксировать отсутствие воспроизведения, не приписывать его исправлению путей без данных.
+5. Если Finder всё ещё не показывает окно, снять новый `sample <PID> 5 -file "$TMPDIR/explr-sample.txt"`, проверить настройки/логи в стандартном каталоге и приложить фактические результаты. Убедиться, что нет прежнего ожидания в рекурсивной инициализации Logger.
+
+Ожидаемый итог проверки: фактические версии ОС/архитектуры/зависимостей, команды и exit status, результаты Dev и трёх способов запуска release, поведение миграции, диагностический JSON при воспроизведении React-ошибки. Только после этого можно отдельно решать вопрос о совместимости Catalina.

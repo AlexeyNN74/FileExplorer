@@ -32,19 +32,19 @@ use logging::Logger;
 use crate::state::searchengine_data::SearchEngineState;
 use meta_data::MetaDataState;
 use std::sync::{Arc, Mutex};
-use tauri::{Builder, Wry};
+use tauri::{App, Manager};
 
-pub fn setup_app_state(app: Builder<Wry>) -> Builder<Wry> {
+pub fn setup_app_state(app: &mut App) {
     // Create our shared state instances
-    let meta_data_state = Arc::new(Mutex::new(MetaDataState::new()));
     let settings_state = Arc::new(Mutex::new(SettingsState::new()));
-    let search_engine_state = Arc::new(Mutex::new(SearchEngineState::new(settings_state.clone())));
     
     // Initialize the logger with the settings state
     Logger::init(settings_state.clone());
+    let meta_data_state = Arc::new(Mutex::new(MetaDataState::new()));
+    let search_engine_state = Arc::new(Mutex::new(SearchEngineState::new(settings_state.clone())));
     
     //To add more just .manage
-    app.manage(meta_data_state)
-        .manage(settings_state)
-        .manage(search_engine_state)
+    app.manage(meta_data_state);
+    app.manage(settings_state);
+    app.manage(search_engine_state);
 }

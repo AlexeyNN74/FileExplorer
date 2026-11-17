@@ -2,7 +2,7 @@ name: Test Only
 
 on:
   push:
-    branches: [ "*" ]
+    branches: [ "**" ]
   pull_request:
     branches: [ "*" ]
   workflow_dispatch:
@@ -18,6 +18,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Verify frontend diagnostics and build
+      run: |
+        npm ci --no-audit --no-fund
+        node --test tests/*.test.js
+        npm run build
+        node scripts/check-frontend-build.js
+
     - name: Install system dependencies
       run: |
         sudo apt update
@@ -30,10 +42,15 @@ jobs:
         profile: minimal
         override: true
 
+    - name: Check locked Tauri dependency consistency
+      run: |
+        cargo fetch --locked
+        npm run check:tauri
+
     - name: Generate test data
-      run: cargo test create_test_data --features "generate-test-data" -- --nocapture
+      run: cargo test --locked create_test_data --features "generate-test-data" -- --nocapture
       working-directory: ./src-tauri
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --locked
       working-directory: ./src-tauri

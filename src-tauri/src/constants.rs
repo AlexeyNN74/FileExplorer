@@ -1,13 +1,27 @@
-use std::env;
 use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
+
+static APP_PATHS: OnceLock<(PathBuf, PathBuf)> = OnceLock::new();
+
+/// Must run from Tauri setup, before constructing any settings or metadata.
+pub fn initialize_paths(config: PathBuf, logs: PathBuf) -> Result<(), &'static str> {
+    APP_PATHS.set((config, logs)).map_err(|_| "Application paths already initialized")
+}
+
+fn app_paths() -> &'static (PathBuf, PathBuf) {
+    #[cfg(test)]
+    return APP_PATHS.get_or_init(|| {
+        static ROOT: LazyLock<tempfile::TempDir> = LazyLock::new(|| tempfile::tempdir().unwrap());
+        (ROOT.path().join("config"), ROOT.path().join("logs"))
+    });
+    #[cfg(not(test))]
+    APP_PATHS.get().expect("Initialize application paths before state")
+}
 
 pub static VERSION: &str = "0.2.3";
 
 pub static CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
-    env::current_dir()
-        .expect("Could not determine current path")
-        .join("config")
+    app_paths().0.clone()
 });
 
 pub static META_DATA_CONFIG_ABS_PATH: LazyLock<PathBuf> =
@@ -15,9 +29,7 @@ pub static META_DATA_CONFIG_ABS_PATH: LazyLock<PathBuf> =
 
 
 pub static LOG_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
-    env::current_dir()
-        .expect("Could not determine current path")
-        .join("logs")
+    app_paths().1.clone()
 });
 
 

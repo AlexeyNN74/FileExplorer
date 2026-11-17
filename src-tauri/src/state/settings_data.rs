@@ -655,7 +655,11 @@ impl SettingsState {
         let mut file = File::open(path)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
-        serde_json::from_str(&contents).map_err(|e| Error::new(io::ErrorKind::InvalidData, e))
+        let mut settings: Settings = serde_json::from_str(&contents)
+            .map_err(|e| Error::new(io::ErrorKind::InvalidData, e))?;
+        // A copied settings file must never send later writes back to its old location.
+        settings.abs_file_path_buf = path.clone();
+        Ok(settings)
     }
 }
 

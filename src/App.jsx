@@ -1,4 +1,6 @@
 import React from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { persistErrorReport, captureErrorReport } from './utils/errorDiagnostics';
 import SettingsProvider from './providers/SettingsProvider';
 import ThemeProvider from './providers/ThemeProvider';
 import AppStateProvider from './providers/AppStateProvider';
@@ -9,7 +11,9 @@ import ContextMenuProvider from './providers/ContextMenuProvider';
 import MainLayout from './layouts/MainLayout';
 
 // Simple fallback for error cases
-function ErrorFallback() {
+function ErrorFallback({ diagnosticStatus, errorReport }) {
+    const [showDetails, setShowDetails] = React.useState(false);
+    const [showLocation, setShowLocation] = React.useState(false);
     return (
         <div style={{
             padding: '20px',
@@ -24,7 +28,20 @@ function ErrorFallback() {
         }}>
             <h1 style={{ color: '#d32f2f' }}>Fast File Explorer</h1>
             <p>The application could not be loaded properly. Try refreshing the page.</p>
-            <p>If the problem persists, check the console (F12) for error messages.</p>
+            {diagnosticStatus?.saved && (
+                <div>
+                    <p>A diagnostic report was saved on this device.</p>
+                    <button onClick={() => setShowLocation(true)}>Show report location</button>
+                    {showLocation && <p style={{ overflowWrap: 'anywhere' }}>{diagnosticStatus.path}</p>}
+                </div>
+            )}
+            {diagnosticStatus && !diagnosticStatus.saved && <p>The diagnostic report could not be saved.</p>}
+            <p>Please reload the application. If it fails again, share the diagnostic details with the developer.</p>
+            <button onClick={() => setShowDetails(value => !value)}>Show diagnostic details</button>
+            {showDetails && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify({
+                ...errorReport,
+                startup: window.__EXPLR_STARTUP__ ? window.__EXPLR_STARTUP__.snapshot() : null,
+            }, null, 2)}</pre>}
             <button
                 onClick={() => window.location.reload()}
                 style={{
@@ -47,7 +64,7 @@ function ErrorFallback() {
 class App extends React.Component {
     constructor(props) {
         super(props);
-        this.state = { hasError: false };
+        this.state = { hasError: false, diagnosticStatus: null, errorReport: null };
     }
 
     // Error Boundary
@@ -57,12 +74,16 @@ class App extends React.Component {
 
     componentDidCatch(error, errorInfo) {
         console.error("Application error:", error, errorInfo);
+        this.setState({ errorReport: captureErrorReport(error, errorInfo) });
+        persistErrorReport(invoke, error, errorInfo).then(diagnosticStatus => {
+            if (diagnosticStatus) this.setState({ diagnosticStatus });
+        });
     }
 
     render() {
         // Show fallback in case of error
         if (this.state.hasError) {
-            return <ErrorFallback />;
+            return <ErrorFallback diagnosticStatus={this.state.diagnosticStatus} errorReport={this.state.errorReport} />;
         }
 
         // Render normal application with all providers

@@ -5,3 +5,12 @@ members = [
 
 
 resolver = "2"  # Ensures dependencies work correctly in Rust 2021
+
+# Opt-in workaround for protocol metadata missing from Catalina's WebKit.
+# Only objc2 loses debug assertions; application assertions remain enabled.
+# See docs/compatibility/catalina-diagnosis.md before using this profile.
+[profile.catalina-dev]
+inherits = "dev"
+
+[profile.catalina-dev.package.objc2]
+debug-assertions = false

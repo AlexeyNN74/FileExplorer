@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { subscribeMediaQuery } from '../utils/mediaQuery';
 
 // Create context
 const ThemeContext = createContext({
@@ -135,7 +136,7 @@ export default function ThemeProvider({ children }) {
         loadTheme();
 
         // Listen for system theme changes only if no saved theme
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
         const handleSystemThemeChange = async (e) => {
             try {
@@ -154,11 +155,7 @@ export default function ThemeProvider({ children }) {
             }
         };
 
-        mediaQuery.addEventListener('change', handleSystemThemeChange);
-
-        return () => {
-            mediaQuery.removeEventListener('change', handleSystemThemeChange);
-        };
+        return subscribeMediaQuery(mediaQuery, handleSystemThemeChange);
     }, []);
 
     // Don't render children until theme is loaded

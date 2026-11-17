@@ -11,17 +11,17 @@
     "tauri:build:macos": "cargo tauri build --target aarch64-apple-darwin && cd src-tauri/scripts && ./post-build.sh",
     "tauri:build:intel": "cargo tauri build --target x86_64-apple-darwin && cd src-tauri/scripts && ./post-build.sh",
     "build:universal": "./build-universal.sh",
-    "dist": "./build-universal.sh"
+    "dist": "./build-universal.sh",
+    "check:tauri": "node scripts/check-tauri-dependencies.js"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.5.0",
-    "@tauri-apps/plugin-dialog": "^2.3.2",
-    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/api": "2.5.0",
+    "@tauri-apps/plugin-dialog": "2.2.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
+    "@tauri-apps/cli": "2.12.5",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.3"
   }
