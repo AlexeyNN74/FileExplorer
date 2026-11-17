@@ -28,6 +28,7 @@ jobs:
         npm ci --no-audit --no-fund
         node --test tests/*.test.js
         npm run build
+        node scripts/check-frontend-build.js
 
     - name: Install system dependencies
       run: |
