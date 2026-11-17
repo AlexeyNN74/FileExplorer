@@ -243,8 +243,11 @@ impl Logger {
 
     // Internal implementation function
     fn init_global_logger(state: Arc<Mutex<SettingsState>>) {
-        if LOGGER.get().is_none() {
-            let _ = LOGGER.set(Logger::new(state));
+        let logger = LOGGER.get_or_init(|| Logger::new(state.clone()));
+        // Early bootstrap logging must not permanently capture fallback settings.
+        if !Arc::ptr_eq(&logger.state, &state) {
+            let shared_settings = state.lock().unwrap().0.clone();
+            logger.state.lock().unwrap().0 = shared_settings;
         }
     }
 
@@ -252,7 +255,10 @@ impl Logger {
         LOGGER.get_or_init(|| {
             eprintln!("Warning: Logger accessed before initialization with application state! Using default settings.");
             eprintln!("Call Logger::init(app_state) in your application startup code.");
-            Logger::new(Arc::new(Mutex::new(SettingsState::new())))
+            // No disk I/O here: settings load/write failures can themselves log.
+            Logger::new(Arc::new(Mutex::new(SettingsState(Arc::new(Mutex::new(
+                crate::state::Settings::default(),
+            ))))))
         })
     }
 
@@ -834,5 +840,56 @@ mod tests_logging {
         let content = fs::read_to_string(log_path).expect("Failed to read log file");
         assert!(content.contains("Test log entry after rotation"), 
                 "Log file should contain the new logged message after rotation");
+    }
+}
+
+#[cfg(test)]
+mod bootstrap_regression {
+    use super::*;
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn settings_write_failure_does_not_deadlock_logger() {
+        const CHILD: &str = "EXPLR_LOGGER_REGRESSION_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let root = tempfile::tempdir().unwrap();
+            let blocked = root.path().join("not-a-directory");
+            std::fs::write(&blocked, "blocked").unwrap();
+            crate::constants::initialize_paths(blocked.clone(), root.path().join("logs")).unwrap();
+            std::env::set_current_dir(root.path()).unwrap();
+            assert_eq!(*crate::constants::CONFIG_PATH, blocked);
+            let settings = Arc::new(Mutex::new(SettingsState::new()));
+            Logger::init(settings.clone());
+            assert!(Arc::ptr_eq(
+                &Logger::global().state.lock().unwrap().0,
+                &settings.lock().unwrap().0
+            ));
+            Logger::global().log(
+                LogLevel::Error,
+                file!(),
+                module_path!(),
+                "bootstrap regression",
+                line!(),
+            );
+            return;
+        }
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "state::logging::bootstrap_regression::settings_write_failure_does_not_deadlock_logger", "--nocapture"])
+            .env(CHILD, "1")
+            .stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                assert!(status.success(), "bootstrap subprocess failed: {status}");
+                break;
+            }
+            if Instant::now() >= deadline {
+                child.kill().unwrap();
+                child.wait().unwrap();
+                panic!("settings write failure deadlocked logger initialization");
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 }
