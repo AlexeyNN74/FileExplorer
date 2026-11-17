@@ -199,7 +199,7 @@ pub fn access_rights_to_string_unix(permissions: Permissions) -> String {
 /// }
 pub fn format_system_time(system_time: SystemTime) -> String {
     let datetime: DateTime<Utc> = system_time.into();
-    datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+    datetime.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
 /// This function calculates the size of a directory in bytes.
@@ -342,4 +342,12 @@ pub fn count_subdirectories(path: &str) -> usize {
     }
 
     dir_count
+}
+
+#[cfg(test)]
+mod timestamp_contract_tests {
+    #[test]
+    fn serialized_file_timestamp_is_unambiguous_utc() {
+        assert_eq!(super::format_system_time(std::time::UNIX_EPOCH), "1970-01-01T00:00:00Z");
+    }
 }

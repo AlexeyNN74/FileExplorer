@@ -411,10 +411,12 @@ const TemplateList = ({ onClose }) => {
                 }
             >
                 <form onSubmit={handleAddTemplateSubmit}>
+                    <p id="template-path-help">Enter an absolute file or folder path, for example /Users/mac/Projects or C:/Users/name/Projects. Relative paths are not based on the open folder.</p>
                     <div className="template-add-form">
                         <div className="form-group">
                             <label htmlFor="template-path">Template Path</label>
                             <input
+                                aria-describedby="template-path-help"
                                 ref={addTemplateInputRef}
                                 type="text"
                                 id="template-path"
@@ -422,7 +424,7 @@ const TemplateList = ({ onClose }) => {
                                 value={newTemplatePath}
                                 onChange={handleAddTemplateInputChange}
                                 onKeyDown={handleAddTemplateKeyDown}
-                                placeholder="Enter path to file or folder to save as template"
+                                placeholder="/Users/mac/Projects"
                             />
                             <div className="input-hint">
                                 Enter the full path to a file or folder that you want to save as a template.

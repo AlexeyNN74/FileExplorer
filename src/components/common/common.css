@@ -428,7 +428,11 @@
     justify-content: flex-end;
     padding: var(--space-md) var(--space-lg);
     border-top: 1px solid var(--border);
-    gap: var(--space-md);
+}
+
+/* Safari 13 supports grid gap, but not flex gap. */
+.modal-footer > * + * {
+    margin-left: var(--space-md);
 }
 
 /* Responsive adjustments */

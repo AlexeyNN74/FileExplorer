@@ -1,3 +1,4 @@
+import { operationError } from '../utils/operationError';
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useHistory } from './HistoryProvider';
@@ -320,19 +321,21 @@ export default function FileSystemProvider({ children }) {
         try {
             if (isSftpPath(folderPath)) {
                 const success = await createSftpFile(folderPath, fileName);
-                if (success) {
-                    await loadDirectory(folderPath);
-                }
+                if (!success) throw new Error('The remote file could not be created.');
             } else {
                 await invoke('create_file', {
                     folderPathAbs: folderPath,
                     fileName: fileName
                 });
-                await loadDirectory(folderPath);
             }
+            if (!await loadDirectory(folderPath)) {
+                throw new Error('The file was created, but the list could not be refreshed. Refresh the folder before trying again.');
+            }
+            return true;
         } catch (err) {
             console.error(`Failed to create file: ${fileName}`, err);
-            setError(`Failed to create file: ${err.message || err}`);
+            setError(`Failed to create file: ${operationError(err)}`);
+            throw new Error(operationError(err));
         } finally {
             setIsLoading(false);
         }
@@ -346,19 +349,21 @@ export default function FileSystemProvider({ children }) {
         try {
             if (isSftpPath(folderPath)) {
                 const success = await createSftpDirectory(folderPath, directoryName);
-                if (success) {
-                    await loadDirectory(folderPath);
-                }
+                if (!success) throw new Error('The remote directory could not be created.');
             } else {
                 await invoke('create_directory', {
                     folderPathAbs: folderPath,
                     folderName: directoryName
                 });
-                await loadDirectory(folderPath);
             }
+            if (!await loadDirectory(folderPath)) {
+                throw new Error('The directory was created, but the list could not be refreshed. Refresh the folder before trying again.');
+            }
+            return true;
         } catch (err) {
             console.error(`Failed to create directory: ${directoryName}`, err);
-            setError(`Failed to create directory: ${err.message || err}`);
+            setError(`Failed to create directory: ${operationError(err)}`);
+            throw new Error(operationError(err));
         } finally {
             setIsLoading(false);
         }

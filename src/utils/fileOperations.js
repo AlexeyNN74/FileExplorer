@@ -26,8 +26,8 @@ export const openInDefaultApp = async (filePath) => {
  */
 export const createFile = async (folderPath, fileName) => {
     return invoke('create_file', {
-        folder_path_abs: folderPath,
-        file_name: fileName
+        folderPathAbs: folderPath,
+        fileName: fileName
     });
 };
 
@@ -39,8 +39,8 @@ export const createFile = async (folderPath, fileName) => {
  */
 export const createDirectory = async (folderPath, directoryName) => {
     return invoke('create_directory', {
-        folder_path_abs: folderPath,
-        directory_name: directoryName
+        folderPathAbs: folderPath,
+        folderName: directoryName
     });
 };
 

@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "**" ]
   pull_request:
-    branches: [ "*" ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 env:
@@ -29,6 +29,11 @@ jobs:
         node --test tests/*.test.js
         npm run build
         node scripts/check-frontend-build.js
+
+    - name: Verify creation dialog and file-list refresh in a browser
+      run: |
+        export CHROMIUM_BIN="$(command -v google-chrome || command -v chromium)"
+        node scripts/test-file-creation-browser.js
 
     - name: Install system dependencies
       run: |

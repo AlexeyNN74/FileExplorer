@@ -2289,3 +2289,25 @@ mod tests_file_system_operation_commands {
         );
     }
 }
+
+#[cfg(test)]
+mod directory_creation_regressions {
+    use super::*;
+    #[tokio::test]
+    async fn directory_creation_is_real_and_duplicate_is_an_error() {
+        let root = tempfile::tempdir().unwrap();
+        create_directory(root.path().to_str().unwrap(), "folder").await.unwrap();
+        assert!(root.path().join("folder").is_dir());
+        let contents = open_directory(root.path().to_string_lossy().into_owned()).await.unwrap();
+        assert!(contents.contains("folder"));
+        assert!(create_directory(root.path().to_str().unwrap(), "folder").await.is_err());
+    }
+    #[tokio::test]
+    async fn directory_creation_rejects_file_parent_without_success() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("file");
+        std::fs::write(&parent, "content").unwrap();
+        assert!(create_directory(parent.to_str().unwrap(), "folder").await.is_err());
+        assert!(!parent.join("folder").exists());
+    }
+}

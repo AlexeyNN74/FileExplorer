@@ -16,6 +16,27 @@ export const formatFileSize = (bytes, decimals = 1) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
+// Legacy Rust timestamps are UTC, even though their old spelling omitted the zone.
+export function parseFileDate(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'string') {
+        const calendar = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (calendar) {
+            const [, year, month, day] = calendar.map(Number);
+            if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
+        }
+    }
+    let date;
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)) {
+        const parts = value.match(/\d+/g).map(Number);
+        date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5]));
+        if (date.getUTCFullYear() !== parts[0] || date.getUTCMonth() !== parts[1] - 1 || date.getUTCDate() !== parts[2] || date.getUTCHours() !== parts[3] || date.getUTCMinutes() !== parts[4] || date.getUTCSeconds() !== parts[5]) return null;
+    } else if (value instanceof Date || typeof value === 'number' || (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value))) {
+        date = new Date(value);
+    } else return null;
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /**
  * Format a date string to a human-readable format.
  * @param {string} dateString - The date string to format.
@@ -23,14 +44,14 @@ export const formatFileSize = (bytes, decimals = 1) => {
  * @returns {string} The formatted date.
  */
 export const formatDate = (dateString, includeTime = false) => {
-    if (!dateString) return 'Unknown';
+    if (dateString === null || dateString === undefined || dateString === '') return 'Unknown';
 
     try {
-        const date = new Date(dateString);
+        const date = parseFileDate(dateString);
 
         // Check if the date is valid
-        if (isNaN(date.getTime())) {
-            return 'Invalid date';
+        if (!date) {
+            return 'Unknown';
         }
 
         const options = {
@@ -48,7 +69,7 @@ export const formatDate = (dateString, includeTime = false) => {
         return new Intl.DateTimeFormat('en-US', options).format(date);
     } catch (error) {
         console.error('Error formatting date:', error);
-        return 'Invalid date';
+        return 'Unknown';
     }
 };
 
@@ -164,15 +185,15 @@ export const getFileType = (filename) => {
  * @returns {string} The elapsed time as a human-readable string.
  */
 export const calculateTimeElapsed = (dateString) => {
-    if (!dateString) return 'Unknown';
+    if (dateString === null || dateString === undefined || dateString === '') return 'Unknown';
 
     try {
-        const date = new Date(dateString);
+        const date = parseFileDate(dateString);
         const now = new Date();
 
         // Check if the date is valid
-        if (isNaN(date.getTime())) {
-            return 'Invalid date';
+        if (!date) {
+            return 'Unknown';
         }
 
         const seconds = Math.floor((now - date) / 1000);

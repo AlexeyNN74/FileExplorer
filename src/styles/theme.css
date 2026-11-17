@@ -162,8 +162,11 @@
 }
 
 /* Animation durations */
-:root.reduce-motion,
-@media (prefers-reduced-motion) {
+:root.reduce-motion *, :root.reduce-motion *::before, :root.reduce-motion *::after {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+}
+@media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.001s !important;
         transition-duration: 0.001s !important;

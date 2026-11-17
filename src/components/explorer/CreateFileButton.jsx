@@ -1,3 +1,4 @@
+import { operationError } from '../../utils/operationError';
 import React, { useState, useRef, useEffect } from 'react';
 import { useFileSystem } from '../../providers/FileSystemProvider';
 import { useHistory } from '../../providers/HistoryProvider';
@@ -14,6 +15,10 @@ const CreateFileButton = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [creationType, setCreationType] = useState(''); // 'file' or 'folder'
     const [itemName, setItemName] = useState('');
+    const [creationPath, setCreationPath] = useState('');
+    const [creationError, setCreationError] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
+    const creating = useRef(false);
     const dropdownRef = useRef(null);
     const inputRef = useRef(null);
     const skipNextToggle = useRef(false);
@@ -40,7 +45,7 @@ const CreateFileButton = () => {
             document.removeEventListener('create-file', handleCreateFile);
             document.removeEventListener('create-folder', handleCreateFolder);
         };
-    }, []);
+    }, [currentPath]);
 
     /**
      * Toggles the dropdown menu
@@ -68,6 +73,8 @@ const CreateFileButton = () => {
      */
     const handleOptionClick = (type) => {
         setCreationType(type);
+        setCreationPath(currentPath);
+        setCreationError('');
         setItemName(getDefaultName(type));
         setIsCreateModalOpen(true);
         closeDropdown();
@@ -103,36 +110,22 @@ const CreateFileButton = () => {
      * Handles creating the file or folder
      */
     const handleCreate = async () => {
-        if (!itemName.trim()) return;
-
+        if (!itemName.trim() || creating.current) return;
+        creating.current = true;
+        setIsCreating(true);
+        setCreationError('');
         try {
-            if (creationType === 'file') {
-                await createFile(currentPath, itemName);
-            } else if (creationType === 'folder') {
-                await createDirectory(currentPath, itemName);
+            const create = creationType === 'folder' ? createDirectory : createFile;
+            if (await create(creationPath, itemName) !== true) {
+                throw new Error('Creation was not confirmed. Refresh the folder before trying again.');
             }
-
             setIsCreateModalOpen(false);
             setItemName('');
         } catch (error) {
-            console.error('Failed to create item:', error);
-
-            // Check for specific error types
-            if (error.message && error.message.includes('already exists')) {
-                const shouldCreateCopy = confirm(
-                    `An item named "${itemName}" already exists. Would you like to create a copy instead?`
-                );
-
-                if (shouldCreateCopy) {
-                    const extension = itemName.includes('.') ? '.' + itemName.split('.').pop() : '';
-                    const baseName = extension ? itemName.replace(extension, '') : itemName;
-                    const copyName = `${baseName} - Copy${extension}`;
-                    setItemName(copyName);
-                    return; // Don't close modal, let user try again
-                }
-            } else {
-                alert(`Failed to create ${creationType}: ${error.message || error}`);
-            }
+            setCreationError(operationError(error));
+        } finally {
+            creating.current = false;
+            setIsCreating(false);
         }
     };
 
@@ -224,21 +217,22 @@ const CreateFileButton = () => {
 
             <Modal
                 isOpen={isCreateModalOpen}
-                onClose={() => setIsCreateModalOpen(false)}
+                onClose={() => { if (!creating.current) setIsCreateModalOpen(false); }}
                 title={`Create New ${creationType === 'file' ? 'File' : 'Folder'}`}
                 size="sm"
                 footer={
                     <>
                         <Button
                             variant="ghost"
-                            onClick={() => setIsCreateModalOpen(false)}
+                            disabled={isCreating}
+                            onClick={() => { if (!creating.current) setIsCreateModalOpen(false); }}
                         >
                             Cancel
                         </Button>
                         <Button
-                            type="submit"
+                            type="button"
                             variant="primary"
-                            disabled={!itemName.trim()}
+                            disabled={isCreating || !itemName.trim()}
                             onClick={handleCreate}
                         >
                             Create
@@ -246,6 +240,8 @@ const CreateFileButton = () => {
                     </>
                 }
             >
+                <p>Location: {creationPath}</p>
+                {creationError && <p role="alert">{creationError}</p>}
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label htmlFor="item-name">
@@ -255,6 +251,7 @@ const CreateFileButton = () => {
                             ref={inputRef}
                             type="text"
                             id="item-name"
+                            disabled={isCreating}
                             value={itemName}
                             onChange={handleNameChange}
                             className="input"

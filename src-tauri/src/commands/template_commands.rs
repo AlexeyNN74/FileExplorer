@@ -96,6 +96,10 @@ pub async fn add_template_impl(
 ) -> Result<String, String> {
     log_info!("Adding template from path: {}", template_path);
 
+    if !Path::new(template_path).is_absolute() {
+        return Err("Use an absolute template source path, for example /Users/mac/Projects on macOS or C:\\Users\\name\\Projects on Windows. Relative paths are not resolved from the open folder.".to_string());
+    }
+
     // Check if the source path exists
     if !Path::new(template_path).exists() {
         let error_msg = format!("Source path does not exist: {}", template_path);
@@ -988,5 +992,17 @@ mod tests_template_commands {
             "Single file template content",
             "File content should match"
         );
+    }
+}
+
+#[cfg(test)]
+mod source_path_regressions {
+    use super::*;
+    #[tokio::test]
+    async fn relative_template_is_rejected_with_guidance_even_when_it_exists() {
+        let state = Arc::new(Mutex::new(MetaDataState::new()));
+        let error = add_template_impl(state, ".").await.unwrap_err();
+        assert!(error.contains("absolute"));
+        assert!(error.contains("/Users/mac/Projects"));
     }
 }

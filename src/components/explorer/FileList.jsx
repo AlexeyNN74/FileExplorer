@@ -1,3 +1,4 @@
+import { parseFileDate } from '../../utils/formatters';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getFileType } from '../../utils/formatters';
 import { useFileSystem } from '../../providers/FileSystemProvider';
@@ -168,8 +169,8 @@ const FileList = ({ data, isLoading, viewMode = 'grid', isSearching = false, sea
                 aValue = aValue.toLowerCase();
                 bValue = bValue.toLowerCase();
             } else if (key === 'created' || key === 'last_modified' || key === 'accessed') {
-                aValue = new Date(a[key]).getTime();
-                bValue = new Date(b[key]).getTime();
+                aValue = (parseFileDate(a[key])?.getTime() ?? 0);
+                bValue = (parseFileDate(b[key])?.getTime() ?? 0);
             } else {
                 aValue = a[key];
                 bValue = b[key];
