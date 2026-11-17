@@ -30,6 +30,7 @@ try {
     const url = `http://127.0.0.1:${server.address().port}/`;
     // Real React, provider, modal and Chromium DOM; only IPC/settings/history/SFTP boundaries are simulated.
     const browser = spawn(process.env.CHROMIUM_BIN || 'chromium', ['--headless', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--remote-debugging-pipe', `--user-data-dir=${directory}/profile`], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+    const browserErrors = [];
     let buffer = '';
     let sequence = 0;
     const pending = new Map();
@@ -38,6 +39,7 @@ try {
         let end;
         while ((end = buffer.indexOf('\0')) >= 0) {
             const response = JSON.parse(buffer.slice(0, end)); buffer = buffer.slice(end + 1);
+            if (response.method === 'Runtime.exceptionThrown') browserErrors.push(JSON.stringify(response.params.exceptionDetails).slice(0, 2000));
             const entry = pending.get(response.id);
             if (entry) { pending.delete(response.id); response.error ? entry.reject(Error(JSON.stringify(response.error))) : entry.resolve(response.result); }
         }
@@ -53,6 +55,7 @@ try {
         const { targetId } = await send('Target.createTarget', { url });
         const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
         await send('Page.enable', {}, sessionId);
+        await send('Runtime.enable', {}, sessionId);
         await send('Page.navigate', { url }, sessionId);
         const deadline = Date.now() + 15000;
         while (Date.now() < deadline) {
@@ -63,10 +66,14 @@ try {
         }
         if (!result || result === 'RUNNING') {
             const debug = await send('Runtime.evaluate', { expression: 'location.href + " " + document.documentElement.outerHTML', returnByValue: true }, sessionId);
-            result = 'FAIL: ' + JSON.stringify(debug).slice(0, 3000);
+            result = 'FAIL: ' + JSON.stringify({ debug, browserErrors }).slice(0, 5000);
         }
     } finally { clearTimeout(timeout); browser.kill(); browser.stdio[3].destroy(); browser.stdio[4].destroy(); }
 
     assert.ok(result?.startsWith('PASS:'), result || 'Browser test did not finish');
     console.log(result);
+} catch (error) {
+    const message = String(error.stack || error).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    console.error(`::error title=Creation browser regression::${message}`);
+    process.exitCode = 1;
 } finally { if (server) server.close(); rmSync(directory, { recursive: true, force: true }); }
